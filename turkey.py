@@ -1,12 +1,19 @@
 import cv2
+import time
 import math
 import numpy as np
-from tensorflow import keras
-from typing import List, NewType
+from typing import List, NewType, Set, Tuple
 from matplotlib import pyplot as plt
 
 
 ndarray = NewType("numpy ndarray", np.ndarray)
+VideoIO = NewType("cv2 webcam", cv2.VideoCapture)
+
+def compute_centroid(points: List[ndarray])->Tuple[int, int]:
+	points = np.asarray(points)
+	c = points.mean(axis=0)
+	return tuple(c.astype(int).flatten())
+
 
 def get_face_hue()-> int:
 	cap = cv2.VideoCapture(0)
@@ -29,10 +36,28 @@ def get_face_hue()-> int:
 
 			return int(cv2.cvtColor(face, cv2.COLOR_BGR2HSV)[:,:,0].mean())
 
-def frame_by_frame()-> ndarray:
-	cap = cv2.VideoCapture(0)
+
+def initialize(cap: VideoIO, init_time: int=5)-> Tuple[int, Set[Tuple[int, int]]]:
 	mfh = get_face_hue()
+	bad_points = set()
+
+	t_end = time.time() + init_time
+	while time.time() < t_end:
+		new_centroid = find_hands(cap, mfh, initializing=True)
+		if new_centroid:
+			bad_points.add(new_centroid)
+			print("GOT ONE")
+
+	return mfh, bad_points
+
+dst = lambda p1, p2: np.sqrt(np.sum(np.square(p2-p1)))
+
+def find_hands(cap: VideoIO, mfh: int, bad_points: Set[Tuple[int, int]]= None,
+	              					   initializing: bool=False)-> ndarray:
 	hands = []
+	centroid = None
+	min_frac, max_frac = 32, 8 # experimentally determined
+
 	while(True):
 	    # Capture frame-by-frame
 	    ret, frame = cap.read()
@@ -42,47 +67,46 @@ def frame_by_frame()-> ndarray:
 	    upper = np.array([mfh + (mfh//2) , 255, 255], dtype = "uint8")
 	    skinRegionHSV = cv2.inRange(hsvim, lower, upper)
 	    blurred = cv2.blur(skinRegionHSV, (2,2))
-	    ret,thresh = cv2.threshold(blurred,0,255,cv2.THRESH_BINARY)
+	    ret, = cv2.old(blurred,0,255,cv2.THRESH_BINARY)
 
 	    h, w, _ = frame.shape
-	    canvas = thresh.copy()
 
-	    canvas[:h//5,  :] = 0
-	    canvas[-h//5:, :] = 0
+	    [:int(h*0.25),  :]  = 0
+	    canvas[int(h*0.75):, :]  = 0
 	    canvas[:,  int(w*0.4):int(w*0.6)] = 0
-	    canvas[:, w//2] = 255
+
+	    top_n = -3 if not initializing else 0
 
 	    image, contours, hierarchy = cv2.findContours(canvas, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 	    if contours:
-		    largest_contours = sorted(contours, key=lambda x: cv2.contourArea(x))[-3:] # top 3
+		    largest_contours = sorted(contours, key=lambda x: cv2.contourArea(x))[top_n:]
+
 		    for lc in largest_contours:
-			    if (w*h//16 < cv2.contourArea(lc) < w*h//8) and (1/2 < h/w < 2):
-			    	#x,y,w,h = cv2.boundingRect(c)
+
+			    if (w*h//min_frac < cv2.contourArea(lc) < w*h//max_frac) and (1/2 < h/w < 2):
+
 			    	hull = cv2.convexHull(lc, returnPoints=False)
 			    	defects = cv2.convexityDefects(lc, hull)
+			    	
+			    	master_pts = []
 			    	for i in range(np.size(defects, 0)):
-				    	spt = tuple(lc[defects[i,0,0]].flatten())
-				    	fpt = tuple(lc[defects[i,0,1]].flatten())
-				    	ept = tuple(lc[defects[i,0,2]].flatten())
+				    	spt = lc[defects[i,0,0]].flatten()
+				    	fpt = lc[defects[i,0,1]].flatten()
+				    	ept = lc[defects[i,0,2]].flatten()
+
+				    	if dst(spt, ept) > 300 or dst(fpt, ept) > 300: continue # too long
+
+				    	pts.extend([spt, fpt, ept])
+
+			    	centroid = compute_centroid(master_pts)
+			    	if bad_points and any([dst(centroid, p) <= 5 for p in bad_points]): continue
 
 
-				    	cv2.line(frame, spt, ept, (0,255,0), 2)
-				    	cv2.line(frame, fpt, ept, (0,0,255), 2)
-		
-			    	#cv2.rectangle(frame, (x,y), (x+w,y+h), (0, 0, 255), 5)
-			    	#h_off, w_off = h//10, w//10
-			    	#grey_hand = frame[y-h_off:y+h+h_off, x-w_off:x+w+w_off, 2]
-			    	#new_hand = cv2.resize(frame[y-h_off:y+h+h_off, x-w_off:x+w+w_off, 2], (128,128))
-			    	#if i == 0: hands = new_hand
-			    	#else: hands = np.dstack((hands, new_hand))
-			    	#hands.append(new_hand)
-			    	#i += 1
+			    	cv2.circle(frame, centroid, radius=5, color=(0, 255, 0), thickness=-1)
 	    
-	    # cv2.imshow("lines", frame)
 	    cv2.imshow("img", frame)
-	    if (cv2.waitKey(1) & 0xFF == ord('q')) or (len(hands) > 50):
-	        break
-	    print(len(hands))
+	    if (cv2.waitKey(1) & 0xFF == ord('q')) or (len(hands) > 50): break
+	    if initializing: return centroid
 
 	cap.release()
 	cv2.destroyAllWindows()
@@ -90,22 +114,10 @@ def frame_by_frame()-> ndarray:
 
 if __name__ == '__main__':
 
-	#x = cv2.imread('../train/1040e0bf-a518-49e3-a720-78ca4fcdedf6_2R.png')
-	#cv2.imshow("hand", x[:,:,0])
-	#cv2.waitKey(0)
-	#print(x.shape)
-
-	#exit()
-
-	#model = keras.models.load_model('turkey_hunter')
+	cap = cv2.VideoCapture(0)
 	
-	hands = frame_by_frame()
-	#hands = hands[..., np.newaxis] # keras needs a channel dim
+	print("\tInitializing...")
+	mfh, bad_points = initialize(cap, 5)
+	print("\tWe're live!")
+	find_hands(cap, mfh, bad_points)
 
-	#predictions = model.predict_classes(hands)
-
-	#for i in range(np.size(hands,2)):
-	#	h = hands[:,:,i]
-	#	cv2.imshow("hand",h)
-	#	cv2.waitKey(0)
-	#cv2.destroyAllWindows()  
