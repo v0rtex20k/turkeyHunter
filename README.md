@@ -1,6 +1,6 @@
 # Getting a HANDle on Machine Learning with Thanksgiving Hand-Turkey Filters #
-### Created by Victor Arsenescu, Fall 2020 ###
-## @vortex20k ##
+## Created by Victor Arsenescu, Fall 2020 ##
+### @vortex20k ###
 
 **Tufts IEEE** welcomes you to our second *Night in The Lab*, where you will learn:
 
@@ -13,4 +13,4 @@
 
 ![Screenshot of Turkey Filter](../showcase/vectors.png)
 
-[Victor's personal site:]https://www.eecs.tufts.edu/~varsen01/
+[Victor's personal site:](https://www.eecs.tufts.edu/~varsen01/)
