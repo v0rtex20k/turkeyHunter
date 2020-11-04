@@ -117,7 +117,6 @@ def get_hypers()-> Dict[str, Any]:
 	parser.add_argument("-t", "--turkey_path", type=str, help="Path to turkey image file", default="./cartoon.png")
 	parser.add_argument("-d", "--turkey_dims", type=int, nargs=2, help="(h,w) of turkey", default=(350,300))
 	parser.add_argument("-p", "--turkey_persistance", type=int, help="n_frames each turkey lasts for", default=5)
-
 	parser.add_argument("-f", "--min_max_fracs", type=int, nargs=2, help="min and max contour area, \
 													as a fraction of total frame area.", default=(64, 4))
 	parser.add_argument("-a", "--max_angle", type=int, help="max acceptable angle to classify as finger", default=30)
