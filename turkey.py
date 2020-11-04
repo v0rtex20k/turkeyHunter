@@ -38,7 +38,7 @@ def run(turkey_path: ndarray, turkey_dims: Tuple[int, int], latency: int, persis
 	overlay = cv2.resize(overlay, turkey_dims)
 
 	cap = cv2.VideoCapture(0)
-	fgbg = cv2.createBackgroundSubtractorMOG2(detectShadows = True)
+	fgbg = cv2.createBackgroundSubtractorKNN()#(detectShadows = True)
 
 	while(True):
 		ret, frame = cap.read()
@@ -96,8 +96,8 @@ def run(turkey_path: ndarray, turkey_dims: Tuple[int, int], latency: int, persis
 					cx, cy = tuple(centroid)
 					oh, ow, _ = overlay.shape
 					dx, dy = ow//2, oh//2
-					bkgd = frame[cy-dy-100:cy+dy-100, cx-dx:cx+dx]
-					frame[cy-dy-100:cy+dy-100, cx-dx:cx+dx] = np.where(overlay < 10, bkgd, overlay)
+					bkgd = frame[cy-dy:cy+dy, cx-dx:cx+dx]
+					frame[cy-dy:cy+dy, cx-dx:cx+dx] = np.where(overlay < 10, bkgd, overlay)
 					if not quiet: print("\t ~ Gobble Gobble Gobble ~")
 					if not persisting: persistance_idx = 4; persisting = True
 					if not persistance_idx: persisting = False
@@ -154,4 +154,3 @@ if __name__ == '__main__':
 	tp, d, l, p, lf, hf, a, m, q = get_hypers()
 	print("\t[TURKEY MODE ACTIVATED]")
 	run(tp, d, l, p, lf, hf, a, m, q)
-
