@@ -1,124 +1,158 @@
+import os
 import cv2
-import time
 import math
+import argparse
 import numpy as np
-from typing import List, NewType, Set, Tuple
-from matplotlib import pyplot as plt
+from typing import Any, Dict, List, NewType, Set, Tuple
 
-
+Point   = NewType("xy coordinate", np.ndarray)
 ndarray = NewType("numpy ndarray", np.ndarray)
-VideoIO = NewType("cv2 webcam", cv2.VideoCapture)
+VideoIO = NewType("cv2 webcam stream", cv2.VideoCapture)
 
-def compute_centroid(points: List[ndarray])->Tuple[int, int]:
-	points = np.asarray(points)
-	c = points.mean(axis=0)
-	return tuple(c.astype(int).flatten())
+def compute_centroid(*points_lists: List[List[Point]])-> Point:
+	points = np.asarray(list(zip(*points_lists))).reshape(-1,2)
+	return points.mean(axis=0).astype(int).flatten()
 
+def midpt (p1, p2) -> float:
+	mpt = 0.5*(p1+p2)
+	return mpt.astype(int)
 
-def get_face_hue()-> int:
+def pdst (p1, p2) -> float:
+	return np.sqrt(np.sum(np.square(p2-p1)))
+
+def theta(a: Point, b: Point, c: Point)-> float:
+	v1, v2 = a-b, c-b
+	return math.degrees(math.acos(np.dot(v1,v2)/(np.linalg.norm(v1) * np.linalg.norm(v2))))
+
+def run(turkey_path: ndarray, turkey_dims: Tuple[int, int], latency: int, persistance: int,
+		min_frac: int, max_frac: int, theta_max: float, min_n_fingers: int, quiet: bool)-> None:
+	frame_idx = 0
+	persistance_idx = 0
+	tree  = cv2.RETR_TREE
+	chain = cv2.CHAIN_APPROX_SIMPLE
+	fgmask, centroid = None, None
+
+	persisting = False
+
+	overlay = cv2.imread(turkey_path)
+	overlay = cv2.resize(overlay, turkey_dims)
+
 	cap = cv2.VideoCapture(0)
-    # create a copy of the image to prevent any changes to the original one.
+	fgbg = cv2.createBackgroundSubtractorMOG2(detectShadows = True)
+
 	while(True):
 		ret, frame = cap.read()
-		image_copy = frame.copy()
 
-		gray_image = cv2.cvtColor(image_copy, cv2.COLOR_BGR2GRAY)
+		try:
+			if frame_idx % latency == 0: fgmask = fgbg.apply(frame)
+			frame_idx += 1
 
-		cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+			h, w = fgmask.shape
 
-		face_rect = cascade.detectMultiScale(gray_image, scaleFactor=1.3, minNeighbors=5)
+			fgmask[:int(h*0.1), :] = 0 # hardcoded for consistency,
+			fgmask[int(h*0.9):, :] = 0 # but can be safely modified
+			fgmask[:, int(w*0.4):int(w*0.6)] = 0
 
-		for (x, y, w, h) in face_rect:
+			n_fingers = 0 if not persisting else 5
+			_, contours, _ = cv2.findContours(fgmask, tree, chain)
 
-			w_offset, h_offset = w//10, h//10
+			if contours and not persisting:
+				lc = max(contours, key=lambda x: cv2.contourArea(x))
 
-			face = frame[y+h_offset:y+h-h_offset, x+w_offset:x+w-w_offset]
+				if (w*h//min_frac < cv2.contourArea(lc) < w*h//max_frac):
 
-			return int(cv2.cvtColor(face, cv2.COLOR_BGR2HSV)[:,:,0].mean())
+					hull = cv2.convexHull(lc, returnPoints=False) # must be False !!
+					defects = cv2.convexityDefects(lc, hull)
 
+					spts, epts, fpts, mpts = [], [], [], []
+					for i in range(np.size(defects, 0)):
+						spt = lc[defects[i,0,0]].flatten(); spts.append(spt)
+						ept = lc[defects[i,0,1]].flatten(); epts.append(ept)
+						fpt = lc[defects[i,0,2]].flatten(); fpts.append(fpt)
 
-def initialize(cap: VideoIO, init_time: int=5)-> Tuple[int, Set[Tuple[int, int]]]:
-	mfh = get_face_hue()
-	bad_points = set()
+						mpts.append(midpt(spt, ept))
 
-	t_end = time.time() + init_time
-	while time.time() < t_end:
-		new_centroid = find_hands(cap, mfh, bad_points, initializing=True)
-		if new_centroid:
-			bad_points.add(new_centroid)
-			print("GOT ONE")
+						# Pretty lines :)
+						# cv2.line(frame, tuple(spt), tuple(fpt), (0,255,0), 2)
+						# cv2.line(frame, tuple(ept), tuple(fpt), (255,0,0), 2)
 
-	return mfh, bad_points
+					centroid = compute_centroid(spts, fpts, epts)
 
-dst = lambda p1, p2: np.sqrt(np.sum(np.square(p2-p1)))
+					for mpt, fpt in zip(mpts, fpts):
+						if mpt[1] > centroid[1] \
+						   or not 25 < pdst(mpt, fpt) < 500 \
+						   or not 0 <= abs(theta(centroid, mpt, fpt)) <= 30: continue
+						n_fingers += 1
+						
+						# Pretty lines :)
+						# cv2.line(frame, tuple(mpt), tuple(fpt), (0,255,0), 2)
+						# cv2.line(frame, tuple(mpt), centroid, (0,0,255), 2)
+					if not quiet:
+						cv2.circle(frame, tuple(centroid), radius=8, color=(255, 0, 255), thickness=-1)
 
-def find_hands(cap: VideoIO, mfh: int, bad_points: Set[Tuple[int, int]]= None,
-	              					   		 initializing: bool=False)-> None:
-	hands = []
-	centroid = None
-	min_frac, max_frac = 32, 8 # experimentally determined
-
-	while(True):
-	    # Capture frame-by-frame
-	    ret, frame = cap.read()
-
-	    hsvim = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-	    lower = np.array([mfh - (mfh//2), 50, 50], dtype = "uint8")
-	    upper = np.array([mfh + (mfh//2) , 255, 255], dtype = "uint8")
-	    skinRegionHSV = cv2.inRange(hsvim, lower, upper)
-	    blurred = cv2.blur(skinRegionHSV, (2,2))
-	    ret,thresh = cv2.threshold(blurred,0,255,cv2.THRESH_BINARY)
-
-	    h, w, _ = frame.shape
-
-	    thresh[:int(h*0.25),  :]  = 0
-	    thresh[int(h*0.75):, :]  = 0
-	    thresh[:, int(w*0.4):int(w*0.6)] = 0
-
-	    top_n = -3 if not initializing else 0
-
-	    image, contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-	    if contours:
-		    largest_contours = sorted(contours, key=lambda x: cv2.contourArea(x))[top_n:]
-
-		    for lc in largest_contours:
-
-			    if (w*h//min_frac < cv2.contourArea(lc) < w*h//max_frac) and (1/2 < h/w < 2):
-
-			    	hull = cv2.convexHull(lc, returnPoints=False)
-			    	defects = cv2.convexityDefects(lc, hull)
-			    	
-			    	pts = []
-			    	for i in range(np.size(defects, 0)):
-				    	spt = lc[defects[i,0,0]].flatten()
-				    	fpt = lc[defects[i,0,1]].flatten()
-				    	ept = lc[defects[i,0,2]].flatten()
-
-				    	if dst(spt, ept) > 300 or dst(fpt, ept) > 300: continue # too long
-
-				    	pts.extend([spt, fpt, ept])
-
-			    	centroid = compute_centroid(pts)
-			    	if bad_points and \
-			    	   sum([dst(centroid, np.array(p))<= 10 \
-			    	   for p in bad_points]) >= 3: continue
-
-
-			    	cv2.circle(frame, centroid, radius=5, color=(0, 255, 0), thickness=-1)
-	    
-	    cv2.imshow("img", frame)
-	    if (cv2.waitKey(1) & 0xFF == ord('q')) or (len(hands) > 50): break
-	    if initializing: return centroid
+			if n_fingers >= min_n_fingers: # 3 seems to be best
+				try:
+					persistance_idx -= 1
+					cx, cy = tuple(centroid)
+					oh, ow, _ = overlay.shape
+					dx, dy = ow//2, oh//2
+					bkgd = frame[cy-dy-100:cy+dy-100, cx-dx:cx+dx]
+					frame[cy-dy-100:cy+dy-100, cx-dx:cx+dx] = np.where(overlay < 10, bkgd, overlay)
+					if not quiet: print("\t ~ Gobble Gobble Gobble ~")
+					if not persisting: persistance_idx = 4; persisting = True
+					if not persistance_idx: persisting = False
+				except ValueError:
+					if not quiet: print("\tOut of bounds!!")
+		except: print("\tWarning: Internal Error ")
+		finally:
+			cv2.imshow("img", frame)
+			if (cv2.waitKey(1) & 0xFF == ord('q')): break
 
 	cap.release()
 	cv2.destroyAllWindows()
 
-if __name__ == '__main__':
+def get_hypers()-> Dict[str, Any]:
+	parser = argparse.ArgumentParser()
+	parser.add_argument("-l", "--latency", type=int, help="Skip every l-th frame", default=2)
+	parser.add_argument("-t", "--turkey_path", type=str, help="Path to turkey image file", default="./cartoon.png")
+	parser.add_argument("-d", "--turkey_dims", type=int, nargs=2, help="(h,w) of turkey", default=(350,300))
+	parser.add_argument("-p", "--turkey_persistance", type=int, help="n_frames each turkey lasts for", default=5)
 
-	cap = cv2.VideoCapture(0)
-	
-	print("\tInitializing...")
-	mfh, bad_points = initialize(cap, 20)
-	print("\tWe're live!")
-	find_hands(cap, mfh, bad_points)
+	parser.add_argument("-f", "--min_max_fracs", type=int, nargs=2, help="min and max contour area, \
+													as a fraction of total frame area.", default=(64, 4))
+	parser.add_argument("-a", "--max_angle", type=int, help="max acceptable angle to classify as finger", default=30)
+	parser.add_argument("-m", "--min_n_fingers", type=int, help="min number of fingers to be considered a hand", default=3)
+	parser.add_argument("-q", "--quiet", type=int, help="silence all output", default=0)
+	args = vars(parser.parse_args())
+
+	try:
+
+		l = int(args["latency"])
+		tp = args["turkey_path"]
+		a = int(args['max_angle'])
+		m = int(args["min_n_fingers"])
+		p = int(args["turkey_persistance"])
+		d = tuple(map(int, args["turkey_dims"]))
+		lf,hf = tuple(map(int, args["min_max_fracs"]))
+		q = True if args["quiet"] > 0 else False
+		
+		assert(0 <= m <= 5)
+		assert(0 <  p <= 100)
+		assert(0 <= a <= 360)
+		assert((1 < lf < 100) and (1 < hf < 100))
+		assert(os.path.isfile(tp))
+
+	except AssertionError:
+		print('\tOne or more of your inputs is out of bounds - please try again.')
+		exit()
+	except:
+		print('\tOne or more of your inputs is invalid - please try again.')
+		exit()
+
+	return tp, d, l, p, lf, hf, a, m, q
+
+if __name__ == '__main__':
+	tp, d, l, p, lf, hf, a, m, q = get_hypers()
+	print("\t[TURKEY MODE ACTIVATED]")
+	run(tp, d, l, p, lf, hf, a, m, q)
 
