@@ -43,7 +43,7 @@ def initialize(cap: VideoIO, init_time: int=5)-> Tuple[int, Set[Tuple[int, int]]
 
 	t_end = time.time() + init_time
 	while time.time() < t_end:
-		new_centroid = find_hands(cap, mfh, initializing=True)
+		new_centroid = find_hands(cap, mfh, bad_points, initializing=True)
 		if new_centroid:
 			bad_points.add(new_centroid)
 			print("GOT ONE")
@@ -53,7 +53,7 @@ def initialize(cap: VideoIO, init_time: int=5)-> Tuple[int, Set[Tuple[int, int]]
 dst = lambda p1, p2: np.sqrt(np.sum(np.square(p2-p1)))
 
 def find_hands(cap: VideoIO, mfh: int, bad_points: Set[Tuple[int, int]]= None,
-	              					   initializing: bool=False)-> ndarray:
+	              					   		 initializing: bool=False)-> None:
 	hands = []
 	centroid = None
 	min_frac, max_frac = 32, 8 # experimentally determined
@@ -67,17 +67,17 @@ def find_hands(cap: VideoIO, mfh: int, bad_points: Set[Tuple[int, int]]= None,
 	    upper = np.array([mfh + (mfh//2) , 255, 255], dtype = "uint8")
 	    skinRegionHSV = cv2.inRange(hsvim, lower, upper)
 	    blurred = cv2.blur(skinRegionHSV, (2,2))
-	    ret, = cv2.old(blurred,0,255,cv2.THRESH_BINARY)
+	    ret,thresh = cv2.threshold(blurred,0,255,cv2.THRESH_BINARY)
 
 	    h, w, _ = frame.shape
 
-	    [:int(h*0.25),  :]  = 0
-	    canvas[int(h*0.75):, :]  = 0
-	    canvas[:,  int(w*0.4):int(w*0.6)] = 0
+	    thresh[:int(h*0.25),  :]  = 0
+	    thresh[int(h*0.75):, :]  = 0
+	    thresh[:, int(w*0.4):int(w*0.6)] = 0
 
 	    top_n = -3 if not initializing else 0
 
-	    image, contours, hierarchy = cv2.findContours(canvas, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+	    image, contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 	    if contours:
 		    largest_contours = sorted(contours, key=lambda x: cv2.contourArea(x))[top_n:]
 
@@ -88,7 +88,7 @@ def find_hands(cap: VideoIO, mfh: int, bad_points: Set[Tuple[int, int]]= None,
 			    	hull = cv2.convexHull(lc, returnPoints=False)
 			    	defects = cv2.convexityDefects(lc, hull)
 			    	
-			    	master_pts = []
+			    	pts = []
 			    	for i in range(np.size(defects, 0)):
 				    	spt = lc[defects[i,0,0]].flatten()
 				    	fpt = lc[defects[i,0,1]].flatten()
@@ -98,8 +98,10 @@ def find_hands(cap: VideoIO, mfh: int, bad_points: Set[Tuple[int, int]]= None,
 
 				    	pts.extend([spt, fpt, ept])
 
-			    	centroid = compute_centroid(master_pts)
-			    	if bad_points and any([dst(centroid, p) <= 5 for p in bad_points]): continue
+			    	centroid = compute_centroid(pts)
+			    	if bad_points and \
+			    	   sum([dst(centroid, np.array(p))<= 10 \
+			    	   for p in bad_points]) >= 3: continue
 
 
 			    	cv2.circle(frame, centroid, radius=5, color=(0, 255, 0), thickness=-1)
@@ -110,14 +112,13 @@ def find_hands(cap: VideoIO, mfh: int, bad_points: Set[Tuple[int, int]]= None,
 
 	cap.release()
 	cv2.destroyAllWindows()
-	return np.asarray(hands)
 
 if __name__ == '__main__':
 
 	cap = cv2.VideoCapture(0)
 	
 	print("\tInitializing...")
-	mfh, bad_points = initialize(cap, 5)
+	mfh, bad_points = initialize(cap, 20)
 	print("\tWe're live!")
 	find_hands(cap, mfh, bad_points)
 
