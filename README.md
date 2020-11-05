@@ -1,5 +1,5 @@
 # Getting a HANDle on Machine Learning with Thanksgiving Hand-Turkey Filters #
-## Created by Victor Arsenescu, Fall 2020 ## @v0rtek20k
+## Created by Victor Arsenescu, Fall 2020 ##
 
 :turkey: :turkey: :turkey: :turkey: :turkey: :turkey: :turkey: :turkey: :turkey:
 
@@ -10,7 +10,7 @@
 - [x] Basic Python and cool libraries - **no prior coding experience necessary !!!**
 - [x] How to manipulate images and extract meaningful features from a live video stream.
 
-@vortex20k
+@v0rtex20k
 [Victor's personal site](https://www.eecs.tufts.edu/~varsen01/)
 
 ### Here's what it looks like out of the box: ###
