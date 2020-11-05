@@ -1,13 +1,13 @@
-# turkey: Getting a HANDle on Machine Learning with Thanksgiving Hand-Turkey Filters #
-## Created by Victor Arsenescu, Fall 2020 ##
+# Getting a HANDle on Machine Learning with Thanksgiving Hand-Turkey Filters #
+## Created by Victor Arsenescu, Fall 2020 ## @v0rtek20k
 
-:turkey: :turkey: :turkey: 
+:turkey: :turkey: :turkey: :turkey: :turkey: :turkey: :turkey: :turkey: :turkey:
 
 **Tufts IEEE** welcomes you to our second *Night in The Lab*, where you will learn:
 
 - [x] What Machine Learning even is and why it's awesome.
 - [x] How images are internally represented by your computer.
-- [x] Basic Python code and cool libraries - **no prior experience necessary !!!**
+- [x] Basic Python and cool libraries - **no prior coding experience necessary !!!**
 - [x] How to manipulate images and extract meaningful features from a live video stream.
 
 @vortex20k
