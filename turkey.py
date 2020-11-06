@@ -37,7 +37,7 @@ def run(turkey_path: ndarray, turkey_dims: Tuple[int, int], latency: int, persis
 	overlay = cv2.imread(turkey_path)
 	overlay = cv2.resize(overlay, turkey_dims)
 
-	cap = cv2.VideoCapture(0)
+	# cap = cv2.VideoCapture(0)
 	# fgbg = cv2.createBackgroundSubtractorKNN()#(detectShadows = True)
 
 	while(True):
@@ -49,9 +49,9 @@ def run(turkey_path: ndarray, turkey_dims: Tuple[int, int], latency: int, persis
 
 			h, w = fgmask.shape
 
-			fgmask[:int(h*0.1), :] = 0 # hardcoded for consistency,
-			fgmask[int(h*0.9):, :] = 0 # but can be safely modified
-			fgmask[:, int(w*0.4):int(w*0.6)] = 0
+			# fgmask[:int(h*0.1), :] = 0 # hardcoded for consistency,
+			# fgmask[int(h*0.9):, :] = 0 # but can be safely modified
+			# fgmask[:, int(w*0.4):int(w*0.6)] = 0
 
 			n_fingers = 0 if not persisting else 5
 			_, contours, _ = cv2.findContours(fgmask, tree, chain)
