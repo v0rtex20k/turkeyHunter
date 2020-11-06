@@ -90,7 +90,7 @@ def run(turkey_path: ndarray, turkey_dims: Tuple[int, int], latency: int, persis
 					if not quiet:
 						cv2.circle(frame, tuple(centroid), radius=8, color=(255, 0, 255), thickness=-1)
 
-			if n_fingers >= min_n_fingers: # 3 seems to be best
+			if n_fingers >= min_n_fingers:
 				try:
 					persistance_idx -= 1
 					cx, cy = tuple(centroid)

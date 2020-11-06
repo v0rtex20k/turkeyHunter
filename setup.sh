@@ -1,3 +1,7 @@
+conda create --name turkey
+
+conda activate turkey
+
 echo "INSTALLING REQUIRED PACKAGES"
       
 echo "cwd="
