@@ -10,6 +10,8 @@
 - [x] Basic Python and cool libraries - **no prior coding experience necessary !!!**
 - [x] How to manipulate images and extract meaningful features from a live video stream.
 
+[Slides](https://docs.google.com/presentation/d/1kx23GVJjyNQdk4LjLtKPY-HkIK3Q-LQ6n0yqy-olBHE/edit#slide=id.ga76b4c6ef0_0_20)
+
 @v0rtex20k
 [Victor's personal site](https://www.eecs.tufts.edu/~varsen01/)
 
