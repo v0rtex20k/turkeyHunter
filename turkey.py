@@ -38,7 +38,7 @@ def run(turkey_path: ndarray, turkey_dims: Tuple[int, int], latency: int, persis
 	overlay = cv2.resize(overlay, turkey_dims)
 
 	cap = cv2.VideoCapture(0)
-	fgbg = cv2.createBackgroundSubtractorKNN()#(detectShadows = True)
+	# fgbg = cv2.createBackgroundSubtractorKNN()#(detectShadows = True)
 
 	while(True):
 		ret, frame = cap.read()
@@ -61,8 +61,8 @@ def run(turkey_path: ndarray, turkey_dims: Tuple[int, int], latency: int, persis
 
 				if (w*h//min_frac < cv2.contourArea(lc) < w*h//max_frac):
 
-					hull = cv2.convexHull(lc, returnPoints=False) # must be False !!
-					defects = cv2.convexityDefects(lc, hull)
+					# hull = cv2.convexHull(lc, returnPoints=False) # must be False !!
+					# defects = cv2.convexityDefects(lc, hull)
 
 					spts, epts, fpts, mpts = [], [], [], []
 					for i in range(np.size(defects, 0)):
@@ -95,9 +95,9 @@ def run(turkey_path: ndarray, turkey_dims: Tuple[int, int], latency: int, persis
 					persistance_idx -= 1
 					cx, cy = tuple(centroid)
 					oh, ow, _ = overlay.shape
-					dx, dy = ow//2, oh//2
-					bkgd = frame[cy-dy:cy+dy, cx-dx:cx+dx]
-					frame[cy-dy:cy+dy, cx-dx:cx+dx] = np.where(overlay < 10, bkgd, overlay)
+					# dx, dy = ow//2, oh//2
+					# bkgd = frame[cy-dy:cy+dy, cx-dx:cx+dx]
+					# frame[cy-dy:cy+dy, cx-dx:cx+dx] = np.where(overlay < 10, bkgd, overlay)
 					if not quiet: print("\t ~ Gobble Gobble Gobble ~")
 					if not persisting: persistance_idx = 4; persisting = True
 					if not persistance_idx: persisting = False
